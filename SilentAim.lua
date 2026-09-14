@@ -29,9 +29,7 @@ fovCircle.Transparency = 1
 fovCircle.Filled = false
 fovCircle.Visible = false
 
-local hooked = false
-local oldIndex = nil
-local gameMt = nil
+local hookInstalled = false
 
 local function isAlive()
     if not Ctx then return false end
@@ -114,16 +112,28 @@ local function pickTarget()
 end
 
 local function installHook()
-    if hooked then return true end
-    if type(getrawmetatable) ~= "function" then return false end
+    if hookInstalled then return true end
+
+    if type(getrawmetatable) ~= "function" then
+        return false
+    end
 
     local ok, mt = pcall(getrawmetatable, game)
-    if not ok or not mt then return false end
+    if not ok or not mt then
+        return false
+    end
 
-    gameMt = mt
-    oldIndex = mt.__index
+    local oldIndex = mt.__index
+    if not oldIndex then
+        return false
+    end
 
-    local hookFn = function(self, key)
+    local function hookFn(self, key)
+        -- пропускаем вызовы от нашего скрипта
+        if type(checkcaller) == "function" and checkcaller() then
+            return oldIndex(self, key)
+        end
+
         if state.enabled and state.currentTarget and isAlive() then
             if key == "Hit" then
                 return CFrame.new(state.currentTarget.Position)
@@ -131,29 +141,37 @@ local function installHook()
                 return state.currentTarget
             end
         end
+
         return oldIndex(self, key)
     end
 
     if type(hookmetamethod) == "function" then
-        hookmetamethod(game, "__index", hookFn)
-    else
-        pcall(setreadonly, mt, false)
-        mt.__index = hookFn
-        pcall(setreadonly, mt, true)
+        local okHook = pcall(hookmetamethod, game, "__index", hookFn)
+        if okHook then
+            hookInstalled = true
+            return true
+        end
     end
 
-    hooked = true
-    return true
-end
+    -- fallback: вручную через setreadonly
+    if type(setreadonly) ~= "function" then
+        return false
+    end
 
-local function uninstallHook()
-    if not hooked or not gameMt then return end
-    pcall(setreadonly, gameMt, false)
-    gameMt.__index = oldIndex
-    pcall(setreadonly, gameMt, true)
-    hooked = false
-    gameMt = nil
-    oldIndex = nil
+    local ok1 = pcall(setreadonly, mt, false)
+    if not ok1 then return false end
+
+    local wrapped = hookFn
+    if type(newcclosure) == "function" then
+        wrapped = newcclosure(hookFn)
+    end
+
+    mt.__index = wrapped
+
+    pcall(setreadonly, mt, true)
+
+    hookInstalled = true
+    return true
 end
 
 RunService.RenderStepped:Connect(function()
@@ -187,7 +205,6 @@ return {
             state.currentTarget = nil
             pcall(function() fovCircle.Visible = false end)
             pcall(function() fovCircle:Remove() end)
-            uninstallHook()
             task.wait(0.1)
         end)
 
@@ -199,17 +216,19 @@ return {
             Flag = "sa_enabled",
             Callback = function(v)
                 if v then
-                    local ok = installHook()
-                    if not ok then
-                        Rayfield:Notify({
-                            Title = "SilentAim",
-                            Content = "Инжектор не поддерживает hook метаметода",
-                            Duration = 6
-                        })
-                        return
+                    if not hookInstalled then
+                        local ok = installHook()
+                        if not ok then
+                            Rayfield:Notify({
+                                Title = "SilentAim",
+                                Content = "Инжектор не поддерживает hook метаметода game.__index",
+                                Duration = 6
+                            })
+                        end
                     end
                 end
                 state.enabled = v
+                if not v then state.currentTarget = nil end
             end,
         })
         ctx.RegisterToggle(toggle)
