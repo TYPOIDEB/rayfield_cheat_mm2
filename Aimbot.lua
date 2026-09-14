@@ -2,23 +2,13 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
-local COLORS = {
-    Murderer = Color3.fromRGB(255, 40, 40),
-    Sheriff  = Color3.fromRGB(60, 140, 255),
-    Innocent = Color3.fromRGB(80, 255, 120),
-}
-
 local state = {
     enabled     = false,
-    holding     = false,
-    mode        = "Hold",
-    key         = Enum.KeyCode.E,
     targetMode  = "Murderer",
     part        = "Head",
     visibleOnly = true,
@@ -135,12 +125,6 @@ local function pickTarget()
     return best
 end
 
-local function shouldAim()
-    if not state.enabled then return false end
-    if not ctx.Alive then return false end
-    return state.holding
-end
-
 local function hideVisuals()
     pcall(function() fovCircle.Visible = false end)
     pcall(function() aimLine.Visible = false end)
@@ -162,7 +146,7 @@ local function onRender()
         fovCircle.Visible = false
     end
 
-    if not shouldAim() then
+    if not state.enabled then
         aimLine.Visible = false
         return
     end
@@ -190,47 +174,17 @@ local function onRender()
     end
 end
 
-local function onInputBegan(input, gpe)
-    if gpe then return end
-    if input.KeyCode == state.key then
-        if state.mode == "Toggle" then
-            state.holding = not state.holding
-        else
-            state.holding = true
-        end
-    end
-end
-
-local function onInputEnded(input, gpe)
-    if gpe then return end
-    if state.mode == "Hold" and input.KeyCode == state.key then
-        state.holding = false
-    end
-end
-
-UserInputService.InputBegan:Connect(onInputBegan)
-UserInputService.InputEnded:Connect(onInputEnded)
 RunService.RenderStepped:Connect(onRender)
 
 return {
     Init = function(ctx, Tab)
-        -- ==============================
-        --  SHUTDOWN HANDSHAKE
-        -- ==============================
         ctx.RegisterShutdown("Aimbot", function(c)
             state.enabled = false
-            state.holding = false
-
             hideVisuals()
             pcall(function() fovCircle:Remove() end)
             pcall(function() aimLine:Remove() end)
-
             task.wait(0.1)
         end)
-
-        -- ==============================
-        --  UI
-        -- ==============================
 
         Tab:CreateSection("Основное")
 
@@ -240,39 +194,10 @@ return {
             Flag = "aim_enabled",
             Callback = function(v)
                 state.enabled = v
-                if not v then
-                    state.holding = false
-                    hideVisuals()
-                end
+                if not v then hideVisuals() end
             end,
         })
         ctx.RegisterToggle(mainToggle)
-
-        Tab:CreateDropdown({
-            Name = "Режим",
-            Options = {"Hold", "Toggle"},
-            CurrentOption = {"Hold"},
-            Flag = "aim_mode",
-            Callback = function(opt)
-                state.mode = opt
-                state.holding = false
-            end,
-        })
-
-        Tab:CreateDropdown({
-            Name = "Кнопка",
-            Options = {"E", "Q", "F", "C", "X", "Z", "MouseButton2"},
-            CurrentOption = {"E"},
-            Flag = "aim_key",
-            Callback = function(opt)
-                if opt == "MouseButton2" then
-                    state.key = Enum.UserInputType.MouseButton2
-                else
-                    state.key = Enum.KeyCode[opt]
-                end
-                state.holding = false
-            end,
-        })
 
         Tab:CreateSection("Цель")
 
