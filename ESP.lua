@@ -8,16 +8,14 @@ local COLORS = {
     Murderer = Color3.fromRGB(255, 40, 40),
     Sheriff  = Color3.fromRGB(60, 140, 255),
     Innocent = Color3.fromRGB(80, 255, 120),
-    GunDrop  = Color3.fromRGB(255, 215, 0),
 }
 
 local state = {
-    players     = false,
-    gunDrop     = false,
-    showName    = true,
-    showRole    = true,
-    showDist    = false,
-    fillAlpha   = 0.55,
+    players      = false,
+    showName     = true,
+    showRole     = true,
+    showDist     = false,
+    fillAlpha    = 0.55,
     outlineAlpha = 0,
 }
 
@@ -137,64 +135,6 @@ local function refreshPlayers()
     end
 end
 
--- GunDrop
-local gunHighlight = nil
-
-local function clearGun()
-    if gunHighlight then
-        gunHighlight:Destroy()
-        gunHighlight = nil
-    end
-end
-
-local function applyGun()
-    if not state.gunDrop then
-        clearGun()
-        return
-    end
-
-    local gun = workspace:FindFirstChild("GunDrop")
-    if not gun then
-        clearGun()
-        return
-    end
-
-    if gunHighlight and gunHighlight.Adornee == gun then
-        return
-    end
-
-    clearGun()
-
-    gunHighlight = Instance.new("Highlight")
-    gunHighlight.Name = "MM2_ESP_Gun"
-    gunHighlight.FillColor = COLORS.GunDrop
-    gunHighlight.OutlineColor = COLORS.GunDrop
-    gunHighlight.FillTransparency = state.fillAlpha
-    gunHighlight.OutlineTransparency = state.outlineAlpha
-    gunHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    gunHighlight.Adornee = gun
-    gunHighlight.Parent = gun
-
-    local bb = Instance.new("BillboardGui")
-    bb.Name = "MM2_ESP_Gun_Name"
-    bb.Size = UDim2.new(0, 160, 0, 40)
-    bb.StudsOffset = Vector3.new(0, 3, 0)
-    bb.AlwaysOnTop = true
-    bb.Parent = gun
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.TextColor3 = COLORS.GunDrop
-    label.TextStrokeTransparency = 0
-    label.TextStrokeColor3 = Color3.new(0, 0, 0)
-    label.TextScaled = true
-    label.Font = Enum.Font.GothamBold
-    label.Text = "GunDrop 🔫"
-    label.Parent = bb
-end
-
--- автоподхват
 local function bindPlayer(player)
     player.CharacterAdded:Connect(function()
         task.wait(0.5)
@@ -216,7 +156,6 @@ task.spawn(function()
                 applyPlayer(p)
             end
         end
-        applyGun()
     end
 end)
 
@@ -261,18 +200,6 @@ return {
             Callback = function(v) state.showDist = v; refreshPlayers() end,
         })
 
-        Tab:CreateSection("Предметы")
-
-        Tab:CreateToggle({
-            Name = "GunDrop ESP",
-            CurrentValue = false,
-            Flag = "esp_gundrop",
-            Callback = function(v)
-                state.gunDrop = v
-                if v then applyGun() else clearGun() end
-            end,
-        })
-
         Tab:CreateSection("Настройки цвета")
 
         Tab:CreateSlider({
@@ -284,7 +211,6 @@ return {
             Callback = function(v)
                 state.fillAlpha = v
                 refreshPlayers()
-                if state.gunDrop then clearGun(); applyGun() end
             end,
         })
 
@@ -297,7 +223,6 @@ return {
             Callback = function(v)
                 state.outlineAlpha = v
                 refreshPlayers()
-                if state.gunDrop then clearGun(); applyGun() end
             end,
         })
     end
