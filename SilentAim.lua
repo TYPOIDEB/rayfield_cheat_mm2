@@ -29,8 +29,6 @@ fovCircle.Transparency = 1
 fovCircle.Filled = false
 fovCircle.Visible = false
 
-local hookInstalled = false
-
 local function isAlive()
     if not Ctx then return false end
     return Ctx.Alive == true
@@ -38,9 +36,24 @@ end
 
 local function getRole(player)
     local char = player.Character
-    if not char then return "Innocent" end
-    if char:FindFirstChild("Knife") then return "Murderer" end
-    if char:FindFirstChild("Gun") or char:FindFirstChild("Revolver") then return "Sheriff" end
+    local backpack = player:FindFirstChildOfClass("Backpack")
+
+    local function hasTool(toolName)
+        local target = toolName:lower()
+        for _, container in ipairs({char, backpack}) do
+            if container then
+                for _, item in ipairs(container:GetChildren()) do
+                    if item:IsA("Tool") and item.Name:lower() == target then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    if hasTool("Knife") then return "Murderer" end
+    if hasTool("Gun") or hasTool("Revolver") then return "Sheriff" end
     return "Innocent"
 end
 
@@ -111,63 +124,76 @@ local function pickTarget()
     return best
 end
 
+local hookInstalled = false
+local mouseObject = nil
+local mouseOriginalIndex = nil
+
+local function getMouse()
+    if mouseObject then return mouseObject end
+    local ok, m = pcall(function() return LocalPlayer:GetMouse() end)
+    if ok and m then
+        mouseObject = m
+        return m
+    end
+    return nil
+end
+
 local function installHook()
     if hookInstalled then return true end
+    if type(getrawmetatable) ~= "function" then return false end
 
-    if type(getrawmetatable) ~= "function" then
-        return false
-    end
+    local mouse = getMouse()
+    if not mouse then return false end
 
-    local ok, mt = pcall(getrawmetatable, game)
-    if not ok or not mt then
-        return false
-    end
+    local ok, mt = pcall(getrawmetatable, mouse)
+    if not ok or not mt then return false end
 
-    local oldIndex = mt.__index
-    if not oldIndex then
-        return false
-    end
+    mouseOriginalIndex = mt.__index
+    if type(mouseOriginalIndex) ~= "function" then return false end
 
     local function hookFn(self, key)
-        -- пропускаем вызовы от нашего скрипта
         if type(checkcaller) == "function" and checkcaller() then
-            return oldIndex(self, key)
+            return mouseOriginalIndex(self, key)
         end
 
         if state.enabled and state.currentTarget and isAlive() then
-            if key == "Hit" then
-                return CFrame.new(state.currentTarget.Position)
-            elseif key == "Target" then
-                return state.currentTarget
+            local target = state.currentTarget
+            if target and target.Parent then
+                if key == "Hit" then
+                    return CFrame.new(target.Position)
+                elseif key == "Target" then
+                    return target
+                elseif key == "UnitRay" then
+                    local origin = Camera.CFrame.Position
+                    local dir = (target.Position - origin).Unit
+                    return Ray.new(origin, dir * 1000)
+                end
             end
         end
 
-        return oldIndex(self, key)
+        return mouseOriginalIndex(self, key)
     end
 
     if type(hookmetamethod) == "function" then
-        local okHook = pcall(hookmetamethod, game, "__index", hookFn)
+        local okHook = pcall(hookmetamethod, mouse, "__index", hookFn)
         if okHook then
             hookInstalled = true
             return true
         end
     end
 
-    -- fallback: вручную через setreadonly
-    if type(setreadonly) ~= "function" then
-        return false
-    end
+    if type(setreadonly) ~= "function" then return false end
 
-    local ok1 = pcall(setreadonly, mt, false)
-    if not ok1 then return false end
+    local okUnlock = pcall(setreadonly, mt, false)
+    if not okUnlock then return false end
 
     local wrapped = hookFn
     if type(newcclosure) == "function" then
-        wrapped = newcclosure(hookFn)
+        local okWrap, w = pcall(newcclosure, hookFn)
+        if okWrap and w then wrapped = w end
     end
 
     mt.__index = wrapped
-
     pcall(setreadonly, mt, true)
 
     hookInstalled = true
@@ -215,23 +241,16 @@ return {
             CurrentValue = false,
             Flag = "sa_enabled",
             Callback = function(v)
-                if v then
-                    if not hookInstalled then
-                        local ok = installHook()
-                        if not ok then
-                            Rayfield:Notify({
-                                Title = "SilentAim",
-                                Content = "Инжектор не поддерживает hook метаметода game.__index",
-                                Duration = 6
-                            })
-                        end
-                    end
+                if v and not hookInstalled then
+                    installHook()
                 end
                 state.enabled = v
                 if not v then state.currentTarget = nil end
             end,
         })
         ctx.RegisterToggle(toggle)
+
+        Tab:CreateSection("Цель")
 
         Tab:CreateDropdown({
             Name = "Кого аимить",
@@ -275,6 +294,8 @@ return {
             Flag = "sa_maxdist",
             Callback = function(v) state.maxDist = v end,
         })
+
+        Tab:CreateSection("Визуал")
 
         Tab:CreateToggle({
             Name = "FOV круг",
