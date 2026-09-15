@@ -18,16 +18,20 @@ local state = {
     visibleOnly = true,
     showFov     = true,
     fovColor    = Color3.fromRGB(255, 100, 100),
+    fovThick    = 1.5,
+    fovFilled   = false,
     currentTarget = nil,
 }
 
 local fovCircle = Drawing.new("Circle")
-fovCircle.Thickness = 1.5
+fovCircle.Thickness = state.fovThick
 fovCircle.NumSides = 72
+fovCircle.Radius = state.fov
 fovCircle.Color = state.fovColor
 fovCircle.Transparency = 1
-fovCircle.Filled = false
+fovCircle.Filled = state.fovFilled
 fovCircle.Visible = false
+fovCircle.ZIndex = 999
 
 local function isAlive()
     if not Ctx then return false end
@@ -213,9 +217,13 @@ RunService.RenderStepped:Connect(function()
     end
 
     if state.showFov and state.enabled then
-        fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        fovCircle.Position = center
         fovCircle.Radius = state.fov
+        fovCircle.Thickness = state.fovThick
         fovCircle.Color = state.fovColor
+        fovCircle.Filled = state.fovFilled
+        fovCircle.Transparency = 1
         fovCircle.Visible = true
     else
         fovCircle.Visible = false
@@ -309,6 +317,15 @@ return {
             Color = state.fovColor,
             Flag = "sa_fovcolor",
             Callback = function(c) state.fovColor = c end,
+        })
+
+        Tab:CreateSlider({
+            Name = "FOV толщина",
+            Range = {1, 6},
+            Increment = 0.5,
+            CurrentValue = 1.5,
+            Flag = "sa_fovthick",
+            Callback = function(v) state.fovThick = v end,
         })
     end
 }
