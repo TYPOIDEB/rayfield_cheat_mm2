@@ -1,5 +1,3 @@
--- SilentAim.lua
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
@@ -10,16 +8,15 @@ local Camera = Workspace.CurrentCamera
 local Ctx = nil
 
 local state = {
-    enabled     = false,
-    targetRole  = "Murderer",
-    part        = "Head",
-    fov         = 150,
-    maxDist     = 500,
-    visibleOnly = true,
-    showFov     = true,
-    fovColor    = Color3.fromRGB(255, 100, 100),
-    fovThick    = 1.5,
-    fovFilled   = false,
+    enabled       = false,
+    targetRole    = "Murderer",
+    part          = "Head",
+    fov           = 150,
+    maxDist       = 500,
+    visibleOnly   = true,
+    showFov       = true,
+    fovColor      = Color3.fromRGB(255, 100, 100),
+    fovThick      = 1.5,
     currentTarget = nil,
 }
 
@@ -29,13 +26,29 @@ fovCircle.NumSides = 72
 fovCircle.Radius = state.fov
 fovCircle.Color = state.fovColor
 fovCircle.Transparency = 1
-fovCircle.Filled = state.fovFilled
+fovCircle.Filled = false
 fovCircle.Visible = false
-fovCircle.ZIndex = 999
+
+pcall(function()
+    local env = (type(getgenv) == "function") and getgenv() or _G
+    if type(env.MM2Hub_Drawings) ~= "table" then
+        env.MM2Hub_Drawings = {}
+    end
+    table.insert(env.MM2Hub_Drawings, fovCircle)
+end)
 
 local function isAlive()
     if not Ctx then return false end
-    return Ctx.Alive == true
+    if Ctx.Alive ~= true then return false end
+    local ok, env = pcall(function()
+        if type(getgenv) == "function" then return getgenv() end
+        return _G
+    end)
+    if not ok or type(env) ~= "table" then return true end
+    if env.MM2Hub_Instance and env.MM2Hub_Instance ~= Ctx.InstanceId then
+        return false
+    end
+    return true
 end
 
 local function getRole(player)
@@ -222,8 +235,6 @@ RunService.RenderStepped:Connect(function()
         fovCircle.Radius = state.fov
         fovCircle.Thickness = state.fovThick
         fovCircle.Color = state.fovColor
-        fovCircle.Filled = state.fovFilled
-        fovCircle.Transparency = 1
         fovCircle.Visible = true
     else
         fovCircle.Visible = false
@@ -238,7 +249,6 @@ return {
             state.enabled = false
             state.currentTarget = nil
             pcall(function() fovCircle.Visible = false end)
-            pcall(function() fovCircle:Remove() end)
             task.wait(0.1)
         end)
 
